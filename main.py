@@ -1,13 +1,16 @@
 import numpy as np
 from datasets import load_dataset
-import random
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
 import plotly.express as px
 import pandas as pd
 import cohere
 import plotly.io as pio
+import plotly.graph_objects as go
+import textwrap
+import random
 
+# Constants
 COHERE_API_KEY = "COHERE_API_KEY"
 SUBSET = "simple"
 SAMPLE_SIZE = 30000
@@ -17,7 +20,7 @@ RANDOM_STATE = 0
 
 def load_data():
     """
-    Load the Wikipedia English simple dataset and extract the documents and embeddings.
+    Load the dataset and extract the documents and embeddings.
     """
     docs_stream = load_dataset(f"Cohere/wikipedia-2023-11-embed-multilingual-v3", SUBSET, split="train", streaming=True)
     docs = []
@@ -47,12 +50,13 @@ def create_dataframe(embeddings_2d, docs, indices):
     """
     Create a DataFrame from the 2D embeddings and the corresponding document texts.
     """
-    hover_titles, hover_texts = zip(*[(docs[i]['title'], docs[i]['text']) for i in indices])
+    titles = [docs[i]['title'] for i in indices]
+    hover_texts = [docs[i]['text'] for i in indices]
     hover_texts = ['<br>'.join(text[i:i+50] for i in range(0, len(text), 50)) for text in hover_texts]
     return pd.DataFrame({
         'x': embeddings_2d[:, 0],
         'y': embeddings_2d[:, 1],
-        'title': hover_titles,
+        'title': titles,
         'text': hover_texts,
     })
 
@@ -71,7 +75,7 @@ def get_cluster_texts(df):
 
 def generate_prompt(cluster_texts):
     """
-    Generate a prompt for Cohere Command-R by selecting random texts from each cluster.
+    Generate a prompt for the language model by selecting random texts from each cluster.
     """
     all_prompts = []
     for cluster_number, texts in cluster_texts.items():
@@ -100,9 +104,23 @@ def create_plot(df):
     """
     Create a scatter plot of the clusters and save it as an HTML file.
     """
-    fig = px.scatter(df, x='x', y='y', color='cluster', hover_data=['label', 'text', 'title'])
+    fig = go.Figure()
+    colors = px.colors.qualitative.Plotly[:20]
+    for cluster_number in sorted(df['cluster'].unique()):
+        cluster_df = df[df['cluster'] == cluster_number]
+        fig.add_trace(go.Scatter(
+            x=cluster_df['x'],
+            y=cluster_df['y'],
+            mode='markers',
+            name=cluster_df['label'].iloc[0],
+            marker=dict(color=colors[(cluster_number - 1) % len(colors)]),
+            hovertemplate='Title: %{text}<br>Cluster: ' + cluster_df['label'].iloc[0] + '<br>Text: %{customdata}<extra></extra>',
+            text=cluster_df['title'],
+            customdata=[textwrap.fill(text, 50) for text in cluster_df['text']],  # Wrap the text every 50 characters
+        ))
+
     fig.show()
-    pio.write_html(fig, 'scatter_plot.html')
+    pio.write_html(fig, 'index.html')
 
 def main():
     """
