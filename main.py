@@ -9,6 +9,7 @@ import plotly.io as pio
 import plotly.graph_objects as go
 import textwrap
 import random
+from typing import List, Tuple, Dict, Any
 
 # Constants
 COHERE_API_KEY = "COHERE_API_KEY"
@@ -18,7 +19,7 @@ N_COMPONENTS = 2
 N_CLUSTERS = 20
 RANDOM_STATE = 0
 
-def load_data():
+def load_data() -> Tuple[np.ndarray, List[Dict[str, Any]]]:
     """
     Load the dataset and extract the documents and embeddings.
     """
@@ -30,7 +31,7 @@ def load_data():
         embeddings.append(doc['emb'])
     return np.asarray(embeddings), docs
 
-def sample_embeddings(embeddings, sample_size):
+def sample_embeddings(embeddings: np.ndarray, sample_size: int) -> Tuple[np.ndarray, np.ndarray]:
     """
     Sample a subset of embeddings and save the indices of the sampled embeddings.
     """
@@ -39,14 +40,14 @@ def sample_embeddings(embeddings, sample_size):
     np.save('indices.npy', indices)
     return embeddings[indices], indices
 
-def reduce_dimensions(embeddings):
+def reduce_dimensions(embeddings: np.ndarray) -> np.ndarray:
     """
     Reduce the dimensionality of the embeddings using t-SNE.
     """
     tsne = TSNE(n_components=N_COMPONENTS, random_state=RANDOM_STATE, verbose=1, n_jobs=-1)
     return tsne.fit_transform(embeddings)
 
-def create_dataframe(embeddings_2d, docs, indices):
+def create_dataframe(embeddings_2d: np.ndarray, docs: List[Dict[str, Any]], indices: np.ndarray) -> pd.DataFrame:
     """
     Create a DataFrame from the 2D embeddings and the corresponding document texts.
     """
@@ -60,20 +61,20 @@ def create_dataframe(embeddings_2d, docs, indices):
         'text': hover_texts,
     })
 
-def perform_clustering(embeddings_2d):
+def perform_clustering(embeddings_2d: np.ndarray) -> np.ndarray:
     """
     Perform K-Means clustering on the 2D embeddings.
     """
     kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=RANDOM_STATE).fit(embeddings_2d)
     return kmeans.labels_
 
-def get_cluster_texts(df):
+def get_cluster_texts(df: pd.DataFrame) -> pd.Series:
     """
     Group the DataFrame by the 'cluster' column and get the 'text' column for each group.
     """
     return df.groupby('cluster')['text'].apply(list)
 
-def generate_prompt(cluster_texts):
+def generate_prompt(cluster_texts: pd.Series) -> str:
     """
     Generate a prompt for the language model by selecting random texts from each cluster.
     """
@@ -84,7 +85,7 @@ def generate_prompt(cluster_texts):
         all_prompts.append(f"Cluster {cluster_number}:\n{numbered_texts}")
     return "\n\n".join(all_prompts) + "\n\nWhat would be suitable labels for these clusters of texts?"
 
-def get_labels(prompt):
+def get_labels(prompt: str) -> List[str]:
     """
     Feed the prompt to the language model and extract the labels from the response.
     """
@@ -92,7 +93,7 @@ def get_labels(prompt):
     response = co.chat(message=prompt, model="command-r")
     return response.text.split("\n")
 
-def assign_labels(df, cluster_texts, labels):
+def assign_labels(df: pd.DataFrame, cluster_texts: pd.Series, labels: List[str]) -> pd.DataFrame:
     """
     Assign the labels to the DataFrame.
     """
@@ -100,14 +101,14 @@ def assign_labels(df, cluster_texts, labels):
         df.loc[df['cluster'] == cluster_number, 'label'] = label
     return df
 
-def create_plot(df):
+def create_plot(df: pd.DataFrame) -> None:
     """
     Create a scatter plot of the clusters and save it as an HTML file.
     """
     fig = go.Figure()
     colors = px.colors.qualitative.Plotly[:20]
     for cluster_number in sorted(df['cluster'].unique()):
-        cluster_df = df[df['cluster'] == cluster_number]
+                cluster_df = df[df['cluster'] == cluster_number]
         fig.add_trace(go.Scatter(
             x=cluster_df['x'],
             y=cluster_df['y'],
@@ -122,7 +123,7 @@ def create_plot(df):
     fig.show()
     pio.write_html(fig, 'index.html')
 
-def main():
+def main() -> None:
     """
     Main function to orchestrate the execution of the script.
     """
